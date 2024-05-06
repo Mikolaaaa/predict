@@ -1,14 +1,15 @@
-import asyncio
-import time
-import asyncpg
 import psycopg2
+import asyncio
 import pandas as pd
+import matplotlib
+from filter import filter_shd
+from prognoz import prediction_linear_regression_shd
+from visual import vis_overload_realtime
+from new_data_to_df_log import new_data_to_df_log
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from main_script_dir.filter import filter_shd
-from main_script_dir.prognoz import prediction_linear_regression_shd
-from main_script_dir.visual import vis_overload_realtime
-from new_data_to_df_log import new_data_to_df_log
+
+matplotlib.use('Agg')
 
 app = FastAPI()
 
@@ -18,7 +19,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
 
 # Параметры подключения к PostgreSQL
 db_params = {
-    'host': 'localhost',
+    'host': 'post_cont',
     'port': '5432',
     'database': 'postgres',
     'user': 'postgres',
@@ -29,7 +30,7 @@ db_params = {
 prev_data = {}
 
 data_mega = {}
-# Выполните запрос с инкрементируемым смещением
+
 offset = 0
 
 result_shd_all = pd.DataFrame()
@@ -403,7 +404,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 print('prev_data : ', prev_data)
                 print('data_mega : ', data_mega)
                 if data_mega != prev_data and data_mega != {}:
-                    await asyncio.sleep(6)
+                    await asyncio.sleep(0)
                     x = 1
                 else:
                     pass
@@ -551,8 +552,7 @@ async def websocket_endpoint(websocket: WebSocket):
         else:
             await asyncio.sleep(6)
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     import uvicorn
 
-    uvicorn.run(app, host="localhost", port=8008)
+    uvicorn.run(app, host="predict", port=8000)
