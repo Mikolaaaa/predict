@@ -1,15 +1,14 @@
-import psycopg2
 import asyncio
+import time
+import asyncpg
+import psycopg2
 import pandas as pd
-import matplotlib
-from filter import filter_shd
-from prognoz import prediction_linear_regression_shd
-from visual import vis_overload_realtime
-from new_data_to_df_log import new_data_to_df_log
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-
-matplotlib.use('Agg')
+from main_script_dir.filter import filter_shd
+from main_script_dir.prognoz import prediction_linear_regression_shd
+from main_script_dir.visual import vis_overload_realtime
+from new_data_to_df_log import new_data_to_df_log
 
 app = FastAPI()
 
@@ -19,7 +18,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
 
 # Параметры подключения к PostgreSQL
 db_params = {
-    'host': 'post_cont',
+    'host': 'localhost',
     'port': '5432',
     'database': 'postgres',
     'user': 'postgres',
@@ -30,7 +29,7 @@ db_params = {
 prev_data = {}
 
 data_mega = {}
-
+# Выполните запрос с инкрементируемым смещением
 offset = 0
 
 result_shd_all = pd.DataFrame()
@@ -256,6 +255,8 @@ async def get_shd_data(data: dict):
 
                     mean_row = mean_row[0][0][0]
 
+                    print('mean_row', mean_row)
+
                     result_shd, column_names_shd = execute_query(
                         f"{sqlRequest} WHERE object = '{param[0]}' AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
                 elif len(param) == 2:
@@ -271,10 +272,12 @@ async def get_shd_data(data: dict):
 
                     mean_row = execute_query(f"SELECT time FROM {tablitsa} WHERE object = '{param[0]}' or object = '{param[1]}' order by time offset {half_dlina - 1} limit 2")
 
-                    print(mean_row)
+                    mean_row = mean_row[0][0][0]
+
+                    print('mean_row', mean_row)
 
                     result_shd, column_names_shd = execute_query(
-                        f"{sqlRequest} WHERE object = '{param[0]}' or object = '{param[1]}' AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
+                        f"{sqlRequest} WHERE (object = '{param[0]}' or object = '{param[1]}') AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
 
                 elif len(param) == 3:
                     dlina = execute_query(
@@ -289,10 +292,12 @@ async def get_shd_data(data: dict):
 
                     mean_row = execute_query(f"SELECT time FROM {tablitsa} WHERE object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}' order by time offset {half_dlina - 1} limit 3")
 
-                    print(mean_row)
+                    mean_row = mean_row[0][0][0]
+
+                    print('mean_row', mean_row)
 
                     result_shd, column_names_shd = execute_query(
-                        f"{sqlRequest} WHERE object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}' AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
+                        f"{sqlRequest} WHERE (object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}') AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
 
 
                 """if len(param) == 1:
@@ -546,7 +551,8 @@ async def websocket_endpoint(websocket: WebSocket):
         else:
             await asyncio.sleep(6)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="predict", port=8000)
+    uvicorn.run(app, host="localhost", port=8008)
