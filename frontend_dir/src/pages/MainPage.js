@@ -67,7 +67,7 @@ export function MainPage() {
 
     const handleClick = async () => {
         setLoader(true)
-        await axios.post('http://localhost:8001/api/get_graph', {
+        await axios.post('http://172.16.20.111:8001/api/get_graph', {
             sqlRequest: sqlRequest,
             sqlRequestLevel: sqlRequestLevel,
             isSqlRequestLevel: isSqlRequestLevel,
@@ -106,9 +106,9 @@ export function MainPage() {
         let timeoutId;
 
         if (buttonClicked) {
-            // Устанавливаем таймаут на 10 секунд перед выполнением действия
+            // Устанавливаем таймаут на 6 секунд перед выполнением действия
             timeoutId = setTimeout(() => {
-                const client = new W3CWebSocket('ws://localhost:8001/api/ws');
+                const client = new W3CWebSocket('ws://172.16.20.111:8001/api/ws');
 
                 client.onopen = () => {
                     console.log('WebSocket Client Connected');
@@ -148,7 +148,7 @@ export function MainPage() {
                     console.log('WebSocket Client bye-bye');
                 };
 
-            }, 15000); // 10 секунд в миллисекундах
+            }, 6000); // 6 секунд в миллисекундах
 
             // Очищаем таймаут при размонтировании компонента или изменении зависимостей
             return () => clearTimeout(timeoutId);

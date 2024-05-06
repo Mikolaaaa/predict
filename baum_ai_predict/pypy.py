@@ -244,6 +244,58 @@ async def get_shd_data(data: dict):
                     gap = 'year'
 
                 if len(param) == 1:
+                    dlina = execute_query(f"SELECT COUNT(*) FROM {tablitsa} WHERE object = '{param[0]}'")
+
+                    dlina = int(dlina[0][0][0])
+                    half_dlina = int(dlina / 2)
+
+                    print('dlina : ', dlina)
+                    print('half_dlina : ', half_dlina)
+
+                    mean_row = execute_query(f"SELECT time FROM {tablitsa} WHERE object = '{param[0]}' order by time offset {half_dlina - 1} limit 1")
+
+                    mean_row = mean_row[0][0][0]
+
+                    result_shd, column_names_shd = execute_query(
+                        f"{sqlRequest} WHERE object = '{param[0]}' AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
+                elif len(param) == 2:
+                    dlina = execute_query(
+                        f"SELECT COUNT(*) FROM {tablitsa} WHERE object = '{param[0]}' or object = '{param[1]}'")
+
+                    dlina = int(dlina[0][0][0])
+                    half_dlina = int(dlina / 2)
+                    if half_dlina % 2 != 0:  # Проверяем, является ли результат нечетным числом
+                        half_dlina += 1  # Если да, уменьшаем на 1, чтобы сделать четным
+                    print('dlina : ', dlina)
+                    print('half_dlina : ', half_dlina)
+
+                    mean_row = execute_query(f"SELECT time FROM {tablitsa} WHERE object = '{param[0]}' or object = '{param[1]}' order by time offset {half_dlina - 1} limit 2")
+
+                    print(mean_row)
+
+                    result_shd, column_names_shd = execute_query(
+                        f"{sqlRequest} WHERE object = '{param[0]}' or object = '{param[1]}' AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
+
+                elif len(param) == 3:
+                    dlina = execute_query(
+                        f"SELECT COUNT(*) FROM {tablitsa} WHERE object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}'")
+
+                    dlina = int(dlina[0][0][0])
+                    half_dlina = int(dlina / 2)
+                    if half_dlina % 3 != 0:  # Проверяем, делится ли результат на 3 с остатком
+                        half_dlina += (3 - half_dlina % 3)  # Увеличиваем на оставшееся до ближайшего кратного числа 3
+                    print('dlina : ', dlina)
+                    print('half_dlina : ', half_dlina)
+
+                    mean_row = execute_query(f"SELECT time FROM {tablitsa} WHERE object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}' order by time offset {half_dlina - 1} limit 3")
+
+                    print(mean_row)
+
+                    result_shd, column_names_shd = execute_query(
+                        f"{sqlRequest} WHERE object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}' AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
+
+
+                """if len(param) == 1:
                     result_shd, column_names_shd = execute_query_v2(
                         f"WITH start_date AS (SELECT MIN(time) AS start_date FROM {tablitsa} WHERE object = '{param[0]}'), end_date AS (SELECT (SELECT start_date FROM start_date) + INTERVAL '{num} {gap}' - INTERVAL '1 day' AS end_date) SELECT * FROM {tablitsa}, start_date, end_date WHERE (object = '{param[0]}') AND (time BETWEEN (SELECT start_date FROM start_date) AND (SELECT end_date FROM end_date)) ORDER BY time")
                     dlina = execute_query_v2(
@@ -260,7 +312,7 @@ async def get_shd_data(data: dict):
                         f"WITH start_date AS (SELECT MIN(time) AS start_date FROM {tablitsa} WHERE object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}'), end_date AS (SELECT (SELECT start_date FROM start_date) + INTERVAL '{num} {gap}' - INTERVAL '1 day' AS end_date) SELECT * FROM {tablitsa}, start_date, end_date WHERE (object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}') AND (time BETWEEN (SELECT start_date FROM start_date) AND (SELECT end_date FROM end_date)) ORDER BY time")
                     dlina = execute_query_v2(
                         f"WITH start_date AS (SELECT MIN(time) AS start_date FROM {tablitsa} WHERE object = '{param[0]}'), end_date AS (SELECT (SELECT start_date FROM start_date) + INTERVAL '{num} {gap}' - INTERVAL '1 day' AS end_date) SELECT COUNT(*) FROM {tablitsa}, start_date, end_date WHERE (object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}') AND (time BETWEEN (SELECT start_date FROM start_date) AND (SELECT end_date FROM end_date))")
-                    half_dlina = int(dlina[0][0][0])
+                    half_dlina = int(dlina[0][0][0])"""
 
                 offset = half_dlina
                 if result_shd is not None:
@@ -346,7 +398,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 print('prev_data : ', prev_data)
                 print('data_mega : ', data_mega)
                 if data_mega != prev_data and data_mega != {}:
-                    await asyncio.sleep(15)
+                    await asyncio.sleep(6)
                     x = 1
                 else:
                     pass
@@ -395,15 +447,20 @@ async def websocket_endpoint(websocket: WebSocket):
                             f"{sqlRequest} where object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}' ORDER BY time LIMIT {l} offset {offset}")
                     # result_shd, column_names_shd = execute_query(f"select * from shd_from_csv_v2 where object = 'System' ORDER BY time LIMIT 1 offset {offset}")
 
+
+
                     if result_shd is not None:
                         # Создайте DataFrame из результата запроса
                         df_shd = pd.DataFrame(result_shd, columns=column_names_shd)
 
                         print(df_shd)
                         print(result_shd_all)
+
                         result_shd_all_old = result_shd_all
                         # Добавьте данные к общему DataFrame
                         result_shd_all = pd.concat([result_shd_all, df_shd], ignore_index=True)
+                        print('result_shd_all_old')
+                        print(result_shd_all_old.to_string())
                         print('result_shd_all')
                         print(result_shd_all.to_string())
                         print('offset = ', offset)
@@ -411,6 +468,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             pass
                         else:
                             offset += l
+                            result_shd_all.drop(result_shd_all.index[:l], inplace=True)
 
                     result_level, column_names_level = execute_query('select * from level')
                     if result_level is not None:
@@ -487,7 +545,6 @@ async def websocket_endpoint(websocket: WebSocket):
             x = 0
         else:
             await asyncio.sleep(6)
-
 
 if __name__ == '__main__':
     import uvicorn
