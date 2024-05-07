@@ -123,9 +123,10 @@ if result_level is not None:
 }"""
 
 
+
 @app.post("/api/get_graph")
 async def get_shd_data(data: dict):
-    global prev_data, result_shd_all, offset
+    global prev_data, result_shd_all, offset, result_shd_all_vis
     realtime = data.get('realtime')
     offset = 0
     """if realtime:
@@ -260,6 +261,8 @@ async def get_shd_data(data: dict):
 
                     result_shd, column_names_shd = execute_query(
                         f"{sqlRequest} WHERE object = '{param[0]}' AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
+                    result_shd_vis, column_names_shd_visual = execute_query(
+                        f"{sqlRequest} WHERE object = '{param[0]}' order by time LIMIT {half_dlina}")
                 elif len(param) == 2:
                     dlina = execute_query(
                         f"SELECT COUNT(*) FROM {tablitsa} WHERE object = '{param[0]}' or object = '{param[1]}'")
@@ -279,7 +282,8 @@ async def get_shd_data(data: dict):
 
                     result_shd, column_names_shd = execute_query(
                         f"{sqlRequest} WHERE (object = '{param[0]}' or object = '{param[1]}') AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
-
+                    result_shd_vis, column_names_shd_visual = execute_query(
+                        f"{sqlRequest} WHERE object = '{param[0]}' or object = '{param[1]}' order by time LIMIT {half_dlina}")
                 elif len(param) == 3:
                     dlina = execute_query(
                         f"SELECT COUNT(*) FROM {tablitsa} WHERE object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}'")
@@ -299,7 +303,8 @@ async def get_shd_data(data: dict):
 
                     result_shd, column_names_shd = execute_query(
                         f"{sqlRequest} WHERE (object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}') AND time >= DATE '{mean_row}' - INTERVAL '{num} {gap}' AND time <= DATE '{mean_row}' order by time LIMIT {half_dlina}")
-
+                    result_shd_vis, column_names_shd_visual = execute_query(
+                        f"{sqlRequest} WHERE object = '{param[0]}' or object = '{param[1]}' or object = '{param[2]}' order by time LIMIT {half_dlina}")
 
                 """if len(param) == 1:
                     result_shd, column_names_shd = execute_query_v2(
@@ -324,6 +329,9 @@ async def get_shd_data(data: dict):
                 if result_shd is not None:
                     df_shd = pd.DataFrame(result_shd, columns=column_names_shd)
 
+                if result_shd_vis is not None:
+                    df_shd_vis = pd.DataFrame(result_shd_vis, columns=column_names_shd_visual)
+
             result_level, column_names_level = execute_query('select * from level')
             if result_level is not None:
                 df_levels = pd.DataFrame(result_level, columns=column_names_level)
@@ -333,6 +341,10 @@ async def get_shd_data(data: dict):
 
             df_filter_shd, df_filter_level, error1 = filter_shd(df_shd, df_levels, param)
             df_filter_shd_log, gui_dict1, error4 = new_data_to_df_log(df_filter_shd)
+            if select_window_type == 'advanced_interval':
+                df_filter_shd_vis, df_filter_level, error1 = filter_shd(df_shd_vis, df_levels, param)
+                df_filter_shd_vis_log, gui_dict1_vis, error4 = new_data_to_df_log(df_filter_shd_vis)
+
             print(2)
             vars_dict_real = {
                 'features_columns': [sigh],
@@ -348,9 +360,14 @@ async def get_shd_data(data: dict):
                                                                                  use_cloud=use_cloud)
             print(3)
             df_predict_log, gui_dict2, error5 = new_data_to_df_log(df_predict)
-            result, error3 = vis_overload_realtime(df_filter_shd_log, df_predict_log, df_filter_level)
+            if select_window_type == 'advanced_interval':
+                result, error3 = vis_overload_realtime(df_filter_shd_vis_log, df_predict_log, df_filter_level)
+            else:
+                result, error3 = vis_overload_realtime(df_filter_shd_log, df_predict_log, df_filter_level)
 
             result_shd_all = df_shd
+            if select_window_type == 'advanced_interval':
+                result_shd_all_vis = df_shd_vis
         except Exception as e:
             if type(e).__name__ == 'OutOfBoundsDatetime':
                 # Если возникает ошибка "OutOfBoundsDatetime", возвращаем ошибку сервера
@@ -396,7 +413,7 @@ async def get_shd_data(data: dict):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
 
-    global prev_data, result_shd_all, offset, data_mega
+    global prev_data, result_shd_all, offset, data_mega, result_shd_all_vis
     x = 0
     while True:
         if prev_data:
@@ -404,7 +421,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 print('prev_data : ', prev_data)
                 print('data_mega : ', data_mega)
                 if data_mega != prev_data and data_mega != {}:
-                    await asyncio.sleep(0)
+                    await asyncio.sleep(6)
                     x = 1
                 else:
                     pass
@@ -465,6 +482,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         result_shd_all_old = result_shd_all
                         # Добавьте данные к общему DataFrame
                         result_shd_all = pd.concat([result_shd_all, df_shd], ignore_index=True)
+                        if select_window_type == 'advanced_interval':
+                            result_shd_all_vis = pd.concat([result_shd_all_vis, df_shd], ignore_index=True)
                         print('result_shd_all_old')
                         print(result_shd_all_old.to_string())
                         print('result_shd_all')
@@ -482,11 +501,16 @@ async def websocket_endpoint(websocket: WebSocket):
                     print(228)
 
                     df_filter_shd, df_filter_level, error1 = filter_shd(result_shd_all, df_levels, param)
+                    df_filter_shd_log, gui_dict1, error4 = new_data_to_df_log(df_filter_shd)
+                    if select_window_type == 'advanced_interval':
+                        df_filter_shd_vis, df_filter_level, error1 = filter_shd(result_shd_all_vis, df_levels, param)
+                        df_filter_shd_vis_log, gui_dict1_vis, error4 = new_data_to_df_log(df_filter_shd_vis)
                     print(229)
 
                     print(df_levels)
                     print(df_filter_level)
-                    df_filter_shd_log, gui_dict1, error4 = new_data_to_df_log(df_filter_shd)
+
+
                     print(230)
                     vars_dict_real = {
                         'features_columns': [sigh],
@@ -503,7 +527,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     print(231)
                     df_predict_log, gui_dict2, error5 = new_data_to_df_log(df_predict)
                     print(232)
-                    result, error3 = vis_overload_realtime(df_filter_shd_log, df_predict_log, df_filter_level)
+                    if select_window_type == 'advanced_interval':
+                        result, error3 = vis_overload_realtime(df_filter_shd_vis_log, df_predict_log, df_filter_level)
+                    else:
+                        result, error3 = vis_overload_realtime(df_filter_shd_log, df_predict_log, df_filter_level)
                     print(233)
                 except Exception as e:
                     if type(e).__name__ == 'OutOfBoundsDatetime':
@@ -551,6 +578,7 @@ async def websocket_endpoint(websocket: WebSocket):
             x = 0
         else:
             await asyncio.sleep(6)
+
 
 if __name__ == '__main__':
     import uvicorn
